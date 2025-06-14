@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Agents - MarbleCone Threat Emulator{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-robot"></i> Threat Emulation Agents</h1>
+            <button class="btn btn-primary" onclick="refreshAgents()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Active Agents</h5>
+            </div>
+            <div class="card-body">
+                {% if agents %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>PAW</th>
+                                <th>Platform</th>
+                                <th>Host</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for agent in agents %}
+                            <tr>
+                                <td>
+                                    <strong>{{ agent.name }}</strong>
+                                </td>
+                                <td>
+                                    <code class="small">{{ agent.paw[:8] }}...</code>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ agent.platform }}</span>
+                                </td>
+                                <td>{{ agent.host }}</td>
+                                <td>
+                                    <span class="status-{{ agent.status }}">
+                                        <i class="fas fa-circle"></i> {{ agent.status }}
+                                    </span>
+                                </td>
+                                <td>{{ agent.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewAgentDetails('{{ agent.id }}')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteAgent('{{ agent.id }}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No agents found</h5>
+                    <p class="text-muted">Agents will appear here when they connect to the threat emulator.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Details Modal -->
+<div class="modal fade" id="agentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agent Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="agentModalBody">
+                <!-- Agent details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Registration Instructions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Agent Registration</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Windows Agent</h6>
+                        <pre class="bg-dark text-light p-3 rounded"><code># Download and run the Windows agent
+powershell -c "Invoke-WebRequest -Uri 'http://localhost:5000/agent/windows' -OutFile 'agent.exe'"
+./agent.exe</code></pre>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Linux Agent</h6>
+                        <pre class="bg-dark text-light p-3 rounded"><code># Download and run the Linux agent
+curl -O http://localhost:5000/agent/linux
+chmod +x agent
+./agent</code></pre>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Important Notes:</h6>
+                    <ul class="mb-0">
+                        <li>Agents must be run with appropriate permissions</li>
+                        <li>Network connectivity to the MarbleCone server is required</li>
+                        <li>Agents will automatically register and begin receiving tasks</li>
+                        <li>This is a simulation environment - no real malicious activity occurs</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshAgents() {
+    location.reload();
+}
+
+function viewAgentDetails(agentId) {
+    // In a real implementation, this would fetch agent details via AJAX
+    const modal = new bootstrap.Modal(document.getElementById('agentModal'));
+    document.getElementById('agentModalBody').innerHTML = `
+        <div class="text-center">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p class="mt-2">Loading agent details...</p>
+        </div>
+    `;
+    modal.show();
+    
+    // Simulate loading agent details
+    setTimeout(() => {
+        document.getElementById('agentModalBody').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Agent Information</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>ID:</strong></td><td>${agentId}</td></tr>
+                        <tr><td><strong>Status:</strong></td><td><span class="status-active">Active</span></td></tr>
+                        <tr><td><strong>Last Seen:</strong></td><td>${new Date().toLocaleString()}</td></tr>
+                        <tr><td><strong>Tasks Executed:</strong></td><td>15</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>System Information</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>OS:</strong></td><td>Windows 10</td></tr>
+                        <tr><td><strong>Architecture:</strong></td><td>x64</td></tr>
+                        <tr><td><strong>Memory:</strong></td><td>8GB</td></tr>
+                        <tr><td><strong>Processes:</strong></td><td>156</td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h6>Recent Activity</h6>
+                <div class="bg-dark text-light p-3 rounded">
+                    <small>
+                        [2024-01-15 14:30:15] Task executed: whoami && hostname<br>
+                        [2024-01-15 14:30:12] Task received: Initial reconnaissance<br>
+                        [2024-01-15 14:30:10] Agent registered with server<br>
+                        [2024-01-15 14:30:08] Agent started
+                    </small>
+                </div>
+            </div>
+        `;
+    }, 1000);
+}
+
+function deleteAgent(agentId) {
+    if (confirm('Are you sure you want to delete this agent?')) {
+        // In a real implementation, this would send a DELETE request
+        alert('Agent deletion simulated. In a real implementation, this would remove the agent from the database.');
+    }
+}
+
+// Auto-refresh agents every 10 seconds
+setInterval(function() {
+    refreshAgents();
+}, 10000);
+</script>
+{% endblock %} 

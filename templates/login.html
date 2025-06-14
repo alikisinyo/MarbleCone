@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Login - MarbleCone Threat Emulator{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card mt-5">
+            <div class="card-header text-center">
+                <div class="mb-3">
+                    <img src="{{ url_for('static', filename='marblecone.jpg') }}" alt="MarbleCone" class="img-fluid" style="max-height: 120px; border-radius: 8px;">
+                </div>
+                <h3><i class="fas fa-shield-alt"></i> MarbleCone Threat Emulator</h3>
+                <p class="mb-0">Advanced Threat Simulation Platform</p>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">
+                            <i class="fas fa-user"></i> Username
+                        </label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <i class="fas fa-lock"></i> Password
+                        </label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-sign-in-alt"></i> Access System
+                    </button>
+                </form>
+                
+                <div class="mt-4 text-center">
+                    <small class="text-muted">
+                        <strong>Demo Credentials:</strong><br>
+                        Username: admin<br>
+                        Password: admin123
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="threat-indicator mt-4">
+            <h5><i class="fas fa-exclamation-triangle"></i> MarbleCone Threat Profile</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-2"><strong>Adversary:</strong> MarbleCone</p>
+                    <p class="mb-2"><strong>Origin:</strong> Tanrida</p>
+                    <p class="mb-0"><strong>Targets:</strong> Governments, Financial Institutions, Critical Infrastructure</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Threat Level</h6>
+                    <div class="d-flex align-items-center">
+                        <div class="me-2">
+                            <i class="fas fa-radiation-alt text-danger"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-danger" role="progressbar" style="width: 95%"></div>
+                            </div>
+                        </div>
+                        <div class="ms-2">
+                            <span class="badge bg-danger">CRITICAL</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6><i class="fas fa-info-circle"></i> System Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="mb-2">
+                            <i class="fas fa-server fa-2x text-primary"></i>
+                        </div>
+                        <h6>Threat Emulation</h6>
+                        <small class="text-muted">Advanced APT Simulation</small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-2">
+                            <i class="fas fa-shield-alt fa-2x text-success"></i>
+                        </div>
+                        <h6>MITRE ATT&CK</h6>
+                        <small class="text-muted">50+ Techniques Mapped</small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-2">
+                            <i class="fas fa-robot fa-2x text-warning"></i>
+                        </div>
+                        <h6>Agent Management</h6>
+                        <small class="text-muted">Multi-Platform Support</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

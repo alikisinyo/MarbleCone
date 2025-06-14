@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}Create Operation - MarbleCone Threat Emulator{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-plus-circle"></i> Create New Operation</h1>
+            <a href="{{ url_for('operations') }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> Back to Operations
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Educational Overview -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-graduation-cap"></i> Educational Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>What is Threat Emulation?</h6>
+                        <p class="small">Threat emulation simulates real-world cyber attacks in a controlled environment to test security defenses and train incident responders.</p>
+                        <h6>Learning Objectives</h6>
+                        <ul class="small">
+                            <li>Understand the cyber kill chain</li>
+                            <li>Practice incident response procedures</li>
+                            <li>Learn MITRE ATT&CK framework mapping</li>
+                            <li>Develop threat hunting skills</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>MarbleCone Adversary Profile</h6>
+                        <p class="small"><strong>Origin:</strong> Tanrida</p>
+                        <p class="small"><strong>Targets:</strong> Governments, Financial Institutions, Critical Infrastructure</p>
+                        <p class="small"><strong>Capabilities:</strong> {{ marblecone.abilities|length }} advanced techniques</p>
+                        <div class="mt-2">
+                            <span class="badge bg-danger me-1">Reconnaissance</span>
+                            <span class="badge bg-warning me-1">Credential Access</span>
+                            <span class="badge bg-info me-1">Lateral Movement</span>
+                            <span class="badge bg-success me-1">Exfiltration</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Operation Configuration Form -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cog"></i> Operation Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="operationForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Operation Name</label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       placeholder="e.g., MarbleCone Financial Sector Assessment" required>
+                                <div class="form-text">Choose a descriptive name for your operation</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="adversary_id" class="form-label">Adversary Profile</label>
+                                <select class="form-select" id="adversary_id" name="adversary_id" required>
+                                    <option value="">Select an adversary...</option>
+                                    <option value="marblecone" selected>MarbleCone (Tanrida APT)</option>
+                                </select>
+                                <div class="form-text">The threat actor profile to emulate</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" id="description" name="description" rows="3" 
+                                          placeholder="Describe the objectives and scope of this operation..."></textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="visibility" class="form-label">Visibility</label>
+                                <select class="form-select" id="visibility" name="visibility">
+                                    <option value="51">51 - Only visible to operation owner</option>
+                                    <option value="52" selected>52 - Visible to all users</option>
+                                    <option value="53">53 - Visible to all users and agents</option>
+                                </select>
+                                <div class="form-text">Controls who can see this operation</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="auto_close" class="form-label">Auto-close Operation</label>
+                                <select class="form-select" id="auto_close" name="auto_close">
+                                    <option value="true" selected>Yes - Close when all tasks complete</option>
+                                    <option value="false">No - Keep open for manual review</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="jitter" class="form-label">Jitter (seconds)</label>
+                                <input type="number" class="form-control" id="jitter" name="jitter" 
+                                       value="2" min="0" max="60">
+                                <div class="form-text">Random delay between task executions (0-60 seconds)</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Settings -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6><i class="fas fa-advanced"></i> Advanced Settings</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="obfuscate" name="obfuscate" checked>
+                                        <label class="form-check-label" for="obfuscate">
+                                            Obfuscate Commands
+                                        </label>
+                                        <div class="form-text">Encode commands to evade detection</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="stealth" name="stealth" checked>
+                                        <label class="form-check-label" for="stealth">
+                                            Stealth Mode
+                                        </label>
+                                        <div class="form-text">Minimize system impact and detection</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="persistence" name="persistence">
+                                        <label class="form-check-label" for="persistence">
+                                            Establish Persistence
+                                        </label>
+                                        <div class="form-text">Create long-term access mechanisms</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Target Selection -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6><i class="fas fa-crosshairs"></i> Target Selection</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="target_group" class="form-label">Target Group</label>
+                                        <select class="form-select" id="target_group" name="target_group">
+                                            <option value="all" selected>All Available Agents</option>
+                                            <option value="windows">Windows Agents Only</option>
+                                            <option value="linux">Linux Agents Only</option>
+                                            <option value="financial">Financial Sector Agents</option>
+                                            <option value="government">Government Sector Agents</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="max_agents" class="form-label">Maximum Agents</label>
+                                        <input type="number" class="form-control" id="max_agents" name="max_agents" 
+                                               value="5" min="1" max="20">
+                                        <div class="form-text">Limit the number of agents used (1-20)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Educational Scenarios -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6><i class="fas fa-book"></i> Educational Scenarios</h6>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="card h-100 scenario-card">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-search fa-2x text-primary mb-2"></i>
+                                            <h6>Basic Reconnaissance</h6>
+                                            <p class="small">Learn fundamental information gathering techniques</p>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                    onclick="loadScenario('recon')">Load Scenario</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="card h-100 scenario-card">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-key fa-2x text-warning mb-2"></i>
+                                            <h6>Credential Harvesting</h6>
+                                            <p class="small">Practice credential access and privilege escalation</p>
+                                            <button type="button" class="btn btn-outline-warning btn-sm" 
+                                                    onclick="loadScenario('credentials')">Load Scenario</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="card h-100 scenario-card">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-network-wired fa-2x text-info mb-2"></i>
+                                            <h6>Lateral Movement</h6>
+                                            <p class="small">Explore network traversal and persistence techniques</p>
+                                            <button type="button" class="btn btn-outline-info btn-sm" 
+                                                    onclick="loadScenario('lateral')">Load Scenario</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Form Actions -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-secondary" onclick="previewOperation()">
+                                    <i class="fas fa-eye"></i> Preview Operation
+                                </button>
+                                <div>
+                                    <button type="button" class="btn btn-outline-primary me-2" onclick="saveDraft()">
+                                        <i class="fas fa-save"></i> Save Draft
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-play"></i> Start Operation
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Operation Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="previewModalBody">
+                <!-- Preview content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadScenario(scenarioType) {
+    const scenarios = {
+        'recon': {
+            name: 'Basic Reconnaissance Exercise',
+            description: 'Learn fundamental information gathering techniques used by threat actors',
+            jitter: 3,
+            obfuscate: true,
+            stealth: true,
+            persistence: false,
+            target_group: 'all',
+            max_agents: 3
+        },
+        'credentials': {
+            name: 'Credential Harvesting Exercise',
+            description: 'Practice credential access and privilege escalation techniques',
+            jitter: 2,
+            obfuscate: true,
+            stealth: true,
+            persistence: true,
+            target_group: 'windows',
+            max_agents: 2
+        },
+        'lateral': {
+            name: 'Lateral Movement Exercise',
+            description: 'Explore network traversal and persistence techniques',
+            jitter: 1,
+            obfuscate: true,
+            stealth: true,
+            persistence: true,
+            target_group: 'all',
+            max_agents: 5
+        }
+    };
+    
+    const scenario = scenarios[scenarioType];
+    
+    // Populate form fields
+    document.getElementById('name').value = scenario.name;
+    document.getElementById('description').value = scenario.description;
+    document.getElementById('jitter').value = scenario.jitter;
+    document.getElementById('obfuscate').checked = scenario.obfuscate;
+    document.getElementById('stealth').checked = scenario.stealth;
+    document.getElementById('persistence').checked = scenario.persistence;
+    document.getElementById('target_group').value = scenario.target_group;
+    document.getElementById('max_agents').value = scenario.max_agents;
+    
+    // Show confirmation
+    alert(`Loaded ${scenario.name} scenario!\n\nThis scenario will help you learn:\n- ${scenario.description}\n\nReview the settings and click "Start Operation" when ready.`);
+}
+
+function previewOperation() {
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    
+    // Get form values
+    const name = document.getElementById('name').value || 'New Operation';
+    const description = document.getElementById('description').value || 'No description provided';
+    const adversary = document.getElementById('adversary_id').value || 'marblecone';
+    const jitter = document.getElementById('jitter').value || '2';
+    const maxAgents = document.getElementById('max_agents').value || '5';
+    
+    document.getElementById('previewModalBody').innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Operation Details</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Name:</strong></td><td>${name}</td></tr>
+                    <tr><td><strong>Adversary:</strong></td><td><span class="badge bg-danger">${adversary}</span></td></tr>
+                    <tr><td><strong>Description:</strong></td><td>${description}</td></tr>
+                    <tr><td><strong>Jitter:</strong></td><td>${jitter} seconds</td></tr>
+                    <tr><td><strong>Max Agents:</strong></td><td>${maxAgents}</td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>Settings</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success"></i> Obfuscate Commands: ${document.getElementById('obfuscate').checked ? 'Yes' : 'No'}</li>
+                    <li><i class="fas fa-check text-success"></i> Stealth Mode: ${document.getElementById('stealth').checked ? 'Yes' : 'No'}</li>
+                    <li><i class="fas fa-check text-success"></i> Persistence: ${document.getElementById('persistence').checked ? 'Yes' : 'No'}</li>
+                </ul>
+                
+                <h6 class="mt-3">Educational Value</h6>
+                <div class="alert alert-info">
+                    <strong>Learning Outcomes:</strong>
+                    <ul class="mb-0 small">
+                        <li>Understand threat actor TTPs</li>
+                        <li>Practice incident response</li>
+                        <li>Learn MITRE ATT&CK mapping</li>
+                        <li>Develop threat hunting skills</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.show();
+}
+
+function saveDraft() {
+    // In a real implementation, this would save the form data
+    alert('Draft saved! In a real implementation, this would store your operation configuration for later use.');
+}
+
+// Form validation
+document.getElementById('operationForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('name').value.trim();
+    if (!name) {
+        alert('Please enter an operation name.');
+        return;
+    }
+    
+    // Show confirmation dialog
+    if (confirm(`Are you ready to start the operation "${name}"?\n\nThis will begin the MarbleCone threat emulation exercise.`)) {
+        // Submit the form
+        this.submit();
+    }
+});
+
+// Auto-save draft every 30 seconds
+setInterval(function() {
+    const name = document.getElementById('name').value;
+    const description = document.getElementById('description').value;
+    if (name || description) {
+        // In a real implementation, this would auto-save
+        console.log('Auto-saving draft...');
+    }
+}, 30000);
+</script>
+{% endblock %} 
